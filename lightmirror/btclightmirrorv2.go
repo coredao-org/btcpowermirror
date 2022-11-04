@@ -27,8 +27,6 @@ type BtcLightMirrorV2 struct {
 
 	CoinBaseTx wire.MsgTx
 
-	TransactionSize int
-
 	MerkleNodes []chainhash.Hash
 }
 
@@ -36,8 +34,7 @@ func CreateBtcLightMirrorV2(btcHeader *wire.BlockHeader, coinBaseTx *wire.MsgTx,
 
 	merkles := BuildMerkleTreeStore(&transactions[0], transactions[1:])
 
-	txSize := len(transactions)
-	exponent := getExponent(txSize)
+	exponent := getExponent(len(transactions))
 	merkleNodes := make([]chainhash.Hash, 0, exponent)
 	offset := 1 << exponent
 	lastIndex := 1
@@ -50,7 +47,6 @@ func CreateBtcLightMirrorV2(btcHeader *wire.BlockHeader, coinBaseTx *wire.MsgTx,
 	return &BtcLightMirrorV2{
 		*btcHeader,
 		*coinBaseTx,
-		txSize,
 		merkleNodes,
 	}
 }
@@ -67,23 +63,13 @@ func (light *BtcLightMirrorV2) Deserialize(r io.Reader) error {
 		return err
 	}
 
-	txSize, err := wire.ReadVarInt(r, 0)
+	merkleNodeSize, err := wire.ReadVarInt(r, 0)
 	if err != nil {
 		return err
 	}
 
-	// Prevent more transactions than could possibly fit into a block.
-	// It would be possible to cause memory exhaustion and panics without
-	// a sane upper bound on this count.
-	if txSize > maxTxPerBlock {
-		return fmt.Errorf("BtcBlock.BtcDecode too many transactions to fit "+
-			"into a block [count %d, max %d]", txSize, maxTxPerBlock)
-	}
-
-	merkleNodeSize := getExponent(int(txSize))
-	light.TransactionSize = int(txSize)
 	light.MerkleNodes = make([]chainhash.Hash, merkleNodeSize, merkleNodeSize)
-	for i := 0; i < merkleNodeSize; i++ {
+	for i := uint64(0); i < merkleNodeSize; i++ {
 		_, err := io.ReadFull(r, light.MerkleNodes[i][:])
 		if err != nil {
 			return err
@@ -105,7 +91,7 @@ func (light *BtcLightMirrorV2) Serialize(w io.Writer) error {
 		return err
 	}
 
-	err = wire.WriteVarInt(w, 0, uint64(light.TransactionSize))
+	err = wire.WriteVarInt(w, 0, uint64(len(light.MerkleNodes)))
 	if err != nil {
 		return err
 	}
@@ -120,7 +106,7 @@ func (light *BtcLightMirrorV2) Serialize(w io.Writer) error {
 	return nil
 }
 
-func (light *BtcLightMirrorV2) ParsePowerParams() (candidateAddr common.Address, rewardAddr common.Address, blockHash chainhash.Hash) {
+func (light *BtcLightMirrorV2) ParsePowerParams() (candidateAddr common.Address, rewardAddr common.Address, blockHash common.Hash) {
 	for _, txout := range light.CoinBaseTx.TxOut[1:] {
 		pkScript := txout.PkScript
 		if len(pkScript) < 1+1+4+1+20+20 || pkScript[0] != txscript.OP_RETURN || string(pkScript[2:6]) != powerMagicString || pkScript[6] != txscript.OP_DATA_1 {
@@ -129,8 +115,7 @@ func (light *BtcLightMirrorV2) ParsePowerParams() (candidateAddr common.Address,
 		candidateAddr = common.BytesToAddress(pkScript[7:27])
 		rewardAddr = common.BytesToAddress(pkScript[27:47])
 		if len(pkScript) >= 47+32 {
-			bh, _ := chainhash.NewHash(pkScript[47 : 47+32])
-			blockHash = *bh
+			blockHash = common.BytesToHash(pkScript[47 : 47+32])
 		}
 	}
 	return
