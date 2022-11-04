@@ -18,6 +18,7 @@ import (
 
 const (
 	powerMagicString = "CORE"
+	maxMerkleNode    = 20
 )
 
 // BtcLightMirrorV2 defines information about a block and is used in the bitcoin
@@ -66,6 +67,11 @@ func (light *BtcLightMirrorV2) Deserialize(r io.Reader) error {
 	merkleNodeSize, err := wire.ReadVarInt(r, 0)
 	if err != nil {
 		return err
+	}
+
+	if merkleNodeSize > maxMerkleNode {
+		return fmt.Errorf("BtcLightMirrorV2.Deserialize too many merkle node to fit "+
+			"into a block [count %d, max %d]", merkleNodeSize, maxMerkleNode)
 	}
 
 	light.MerkleNodes = make([]chainhash.Hash, merkleNodeSize, merkleNodeSize)
