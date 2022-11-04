@@ -96,8 +96,8 @@ func (light *BtcLightMirrorV2) Serialize(w io.Writer) error {
 		return err
 	}
 
-	for _, txHash := range light.MerkleNodes {
-		_, err := w.Write(txHash[:])
+	for _, node := range light.MerkleNodes {
+		_, err := w.Write(node[:])
 		if err != nil {
 			return err
 		}
