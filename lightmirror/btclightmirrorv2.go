@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	
+
 	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/txscript"
@@ -115,13 +115,13 @@ func (light *BtcLightMirrorV2) Serialize(w io.Writer) error {
 func (light *BtcLightMirrorV2) ParsePowerParams() (candidateAddr common.Address, rewardAddr common.Address, blockHash common.Hash) {
 	for _, txout := range light.CoinBaseTx.TxOut[1:] {
 		pkScript := txout.PkScript
-		if len(pkScript) < 1+1+4+1+20+20 || pkScript[0] != txscript.OP_RETURN || string(pkScript[2:6]) != powerMagicString || pkScript[6] != txscript.OP_DATA_1 {
-			continue
-		}
-		candidateAddr = common.BytesToAddress(pkScript[7:27])
-		rewardAddr = common.BytesToAddress(pkScript[27:47])
-		if len(pkScript) >= 47+32 {
-			blockHash = common.BytesToHash(pkScript[47 : 47+32])
+		if len(pkScript) >= 1+1+4+1+20+20 && pkScript[0] == txscript.OP_RETURN && string(pkScript[2:6]) == powerMagicString && pkScript[6] == txscript.OP_DATA_1 {
+			candidateAddr = common.BytesToAddress(pkScript[7:27])
+			rewardAddr = common.BytesToAddress(pkScript[27:47])
+			if len(pkScript) >= 47+32 {
+				blockHash = common.BytesToHash(pkScript[47 : 47+32])
+			}
+			return
 		}
 	}
 	return
